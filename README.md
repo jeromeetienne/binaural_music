@@ -23,6 +23,7 @@ A tiny, static web app that **synthesizes binaural and isochronic tones live in 
 
 - **Fully tunable** — live sliders for beat frequency (with a brainwave-band label), carrier frequency, master volume, and background noise (pink / brown) with its own level.
 - **Session timer** — 10 / 25 / 60 / 90 minutes or no limit, with a click-free fade-out.
+- **Keeps the screen awake** — while a tone is playing the app holds a [Screen Wake Lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API) so your phone or laptop won't dim or sleep mid-session, and re-acquires it automatically when you switch back to the tab. Requires a secure context (the live HTTPS site); degrades gracefully where unsupported.
 - **Click-free** start/stop and parameter changes via smooth gain ramps.
 - **Installable & offline (PWA)** — add it to your home screen or desktop and it runs full-screen, launches from an icon, and works with no network. A service worker caches the whole app shell; there are no audio files to download because everything is synthesized live.
 

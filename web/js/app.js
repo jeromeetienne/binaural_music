@@ -270,6 +270,41 @@ class Engine {
 
 const engine = new Engine();
 
+// ---- Wake lock ---------------------------------------------------------
+// Keep the screen (and device) awake while a tone is playing. The browser
+// auto-releases the lock when the tab is hidden, so re-acquire on return.
+
+class WakeLock {
+	constructor() {
+		/** @type {WakeLockSentinel | null} */
+		this.sentinel = null;
+		this.wanted = false;
+		document.addEventListener('visibilitychange', () => {
+			if (this.wanted && document.visibilityState === 'visible') this.request();
+		});
+	}
+
+	async request() {
+		this.wanted = true;
+		if (!('wakeLock' in navigator) || this.sentinel !== null) return;
+		try {
+			this.sentinel = await navigator.wakeLock.request('screen');
+			this.sentinel.addEventListener('release', () => { this.sentinel = null; });
+		} catch (e) {
+			this.sentinel = null;
+		}
+	}
+
+	async release() {
+		this.wanted = false;
+		const sentinel = this.sentinel;
+		this.sentinel = null;
+		if (sentinel !== null) { try { await sentinel.release(); } catch (e) {} }
+	}
+}
+
+const wakeLock = new WakeLock();
+
 // ---- UI wiring ---------------------------------------------------------
 
 /** @param {string} id @returns {HTMLElement} */
@@ -411,11 +446,13 @@ async function togglePlay() {
 		state.playing = true;
 		setPlayIcon(true);
 		startTimer();
+		wakeLock.request();
 	} else {
 		engine.stop();
 		state.playing = false;
 		setPlayIcon(false);
 		stopTimer();
+		wakeLock.release();
 	}
 	updatePulse();
 }
