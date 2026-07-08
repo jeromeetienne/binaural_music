@@ -1,0 +1,25 @@
+{
+	"name": "binaural-music",
+	"version": "0.1.0",
+	"description": "Real-time binaural & isochronic brainwave tone player (Web Audio API).",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"start": "npx --yes http-server web -p 5173 -c-1 -o",
+		"deploy": "gh-pages -d web"
+	},
+	"keywords": [
+		"binaural",
+		"isochronic",
+		"brainwave",
+		"web-audio",
+		"focus",
+		"meditation"
+	],
+	"engines": {
+		"node": ">=18"
+	},
+	"devDependencies": {
+		"gh-pages": "^6.3.0"
+	}
+}

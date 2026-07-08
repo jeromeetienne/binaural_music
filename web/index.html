@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Brainwave Player — Binaural &amp; Isochronic</title>
+	<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+	<h1>Brainwave Player</h1>
+	<div class="sub">Real-time binaural &amp; isochronic tone generator · nothing is recorded, everything is synthesized live</div>
+
+	<div class="app">
+		<div class="presets" id="presets"></div>
+
+		<div class="modes">
+			<button class="mode" data-mode="binaural">Binaural</button>
+			<button class="mode" data-mode="isochronic">Isochronic</button>
+		</div>
+		<div class="hint" id="hint"></div>
+
+		<div class="control">
+			<div class="row">
+				<label>Beat frequency</label>
+				<span><span class="val" id="beatVal"></span><span class="band" id="beatBand"></span></span>
+			</div>
+			<input type="range" id="beat" min="0.5" max="40" step="0.5" />
+		</div>
+
+		<div class="control">
+			<div class="row">
+				<label>Carrier frequency</label>
+				<span class="val" id="carrierVal"></span>
+			</div>
+			<input type="range" id="carrier" min="80" max="500" step="1" />
+		</div>
+
+		<div class="control">
+			<div class="row">
+				<label>Master volume</label>
+				<span class="val" id="volVal"></span>
+			</div>
+			<input type="range" id="vol" min="0" max="100" step="1" />
+		</div>
+
+		<div class="control">
+			<div class="row">
+				<div class="noise-head">
+					<label>Background noise</label>
+					<select id="noiseType">
+						<option value="off">Off</option>
+						<option value="pink">Pink</option>
+						<option value="brown">Brown</option>
+					</select>
+				</div>
+				<span class="val" id="noiseVal"></span>
+			</div>
+			<input type="range" id="noise" min="0" max="100" step="1" />
+		</div>
+
+		<div class="transport">
+			<button class="play" id="play" aria-label="Play">
+				<svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+			</button>
+			<div class="timer-wrap">
+				<div class="row">
+					<label style="color:var(--muted);font-size:13px"><span class="pulse" id="pulse"></span>Session timer</label>
+					<select id="timerLen">
+						<option value="0">No limit</option>
+						<option value="600">10 min</option>
+						<option value="1500">25 min</option>
+						<option value="3600">60 min</option>
+						<option value="5400">90 min</option>
+					</select>
+				</div>
+				<div class="clock idle" id="clock">--:--</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="foot">
+		Binaural beats require <b style="color:var(--accent-2)">headphones</b> — each ear gets a slightly different tone and the beat is perceived in the brain.
+		Isochronic tones pulse a single tone and work on speakers.
+		This is a wellness/focus aid, not a medical device; effects vary between people.
+	</div>
+
+	<script src="js/app.js"></script>
+</body>
+</html>
