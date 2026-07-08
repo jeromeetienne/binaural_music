@@ -55,6 +55,8 @@ class Engine {
 		this.voices = [];
 		/** @type {AudioBufferSourceNode | null} */
 		this.noiseSource = null;
+		/** @type {{ mode: 'binaural', left: OscillatorNode, right: OscillatorNode } | { mode: 'isochronic', carrier: OscillatorNode, lfo: OscillatorNode } | null} */
+		this.tone = null;
 	}
 
 	ensureContext() {
@@ -139,6 +141,7 @@ class Engine {
 			left.start(now);
 			right.start(now);
 			this.voices = [left, right];
+			this.tone = { mode: 'binaural', left, right };
 			return;
 		}
 		// isochronic — one carrier, amplitude gated at the beat rate
@@ -168,6 +171,7 @@ class Engine {
 		carrier.start(now);
 		lfo.start(now);
 		this.voices = [carrier, lfo];
+		this.tone = { mode: 'isochronic', carrier, lfo };
 	}
 
 	pulseCurve() {
@@ -217,6 +221,7 @@ class Engine {
 		const noise = this.noiseSource;
 		this.voices = [];
 		this.noiseSource = null;
+		this.tone = null;
 		setTimeout(() => {
 			voices.forEach((v) => { try { v.stop(); } catch (e) {} });
 			if (noise) { try { noise.stop(); } catch (e) {} }
@@ -233,6 +238,22 @@ class Engine {
 	setNoiseLevel(v) {
 		if (this.ctx === null || this.noiseGain === null || state.playing === false) return;
 		this.noiseGain.gain.setTargetAtTime(v / 100, this.ctx.currentTime, 0.1);
+	}
+
+	// glide the running tone to the current carrier/beat — no rebuild, so the
+	// oscillator phase stays continuous and the pitch change is click-free
+	setTone() {
+		if (state.playing === false || this.ctx === null || this.tone === null) return;
+		if (this.tone.mode !== state.mode) { this.refetchVoices(); return; }
+		const t = this.ctx.currentTime;
+		const glide = 0.03;
+		if (this.tone.mode === 'binaural') {
+			this.tone.left.frequency.setTargetAtTime(state.carrier - state.beat / 2, t, glide);
+			this.tone.right.frequency.setTargetAtTime(state.carrier + state.beat / 2, t, glide);
+			return;
+		}
+		this.tone.carrier.frequency.setTargetAtTime(state.carrier, t, glide);
+		this.tone.lfo.frequency.setTargetAtTime(state.beat, t, glide);
 	}
 
 	// live-updates that need the graph rebuilt (freq/mode/noise type)
@@ -417,7 +438,7 @@ el('beat').addEventListener('input', (e) => {
 	clearActivePreset();
 	updateHint();
 	updatePulse();
-	engine.refetchVoices();
+	engine.setTone();
 });
 
 el('carrier').addEventListener('input', (e) => {
@@ -426,7 +447,7 @@ el('carrier').addEventListener('input', (e) => {
 	el('carrierVal').textContent = state.carrier + ' Hz';
 	clearActivePreset();
 	updateHint();
-	engine.refetchVoices();
+	engine.setTone();
 });
 
 el('vol').addEventListener('input', (e) => {
