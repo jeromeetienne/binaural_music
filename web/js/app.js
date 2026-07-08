@@ -274,7 +274,7 @@ const engine = new Engine();
 // Keep the screen (and device) awake while a tone is playing. The browser
 // auto-releases the lock when the tab is hidden, so re-acquire on return.
 
-class WakeLock {
+class ScreenWakeLock {
 	constructor() {
 		/** @type {WakeLockSentinel | null} */
 		this.sentinel = null;
@@ -303,7 +303,7 @@ class WakeLock {
 	}
 }
 
-const wakeLock = new WakeLock();
+const wakeLock = new ScreenWakeLock();
 
 // ---- UI wiring ---------------------------------------------------------
 

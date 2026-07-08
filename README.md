@@ -4,6 +4,9 @@ A tiny, static web app that **synthesizes binaural and isochronic tones live in 
 
 **▶️ Live: https://jeromeetienne.github.io/binaural_music/**
 
+![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8?logo=pwa&logoColor=white)
+[![License](https://img.shields.io/github/license/jeromeetienne/binaural_music)](LICENSE)
+
 ---
 
 ## Features
