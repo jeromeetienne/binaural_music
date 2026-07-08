@@ -1,7 +1,7 @@
 'use strict';
 
 // Bump CACHE whenever a precached asset changes so clients pull the new copy.
-const CACHE = 'brainwave-v1';
+const CACHE = 'brainwave-v2';
 
 // Relative URLs so the app works both at the site root and under a GitHub Pages
 // project subpath (/binaural_music/). The service worker's own scope is the

@@ -275,6 +275,42 @@ select {
 	text-align: center;
 }
 
+.credit {
+	margin-top: 14px;
+	color: var(--muted);
+	font-size: 12px;
+	text-align: center;
+}
+
+.credit .heart {
+	width: 13px;
+	height: 13px;
+	color: #ff4d6d;
+	vertical-align: -2px;
+	margin: 0 1px;
+}
+
+.credit a {
+	color: var(--muted);
+	text-decoration: none;
+	border-bottom: 1px dotted var(--muted);
+}
+
+.credit a:hover {
+	color: var(--accent);
+	border-color: var(--accent);
+}
+
+.credit a.gh {
+	margin-left: 9px;
+	vertical-align: -3px;
+	border-bottom: none;
+}
+
+.credit a.gh:hover {
+	color: var(--accent);
+}
+
 .pulse {
 	display: inline-block;
 	width: 8px;
@@ -309,7 +345,8 @@ select {
 	}
 
 	.sub,
-	.foot {
+	.foot,
+	.credit {
 		padding: 0 16px;
 	}
 }

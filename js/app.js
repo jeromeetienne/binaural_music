@@ -8,6 +8,19 @@ const BANDS = [
 	{ max: 100, name: 'gamma · peak focus' },
 ];
 
+/**
+ * @typedef {object} Preset
+ * @property {string} id
+ * @property {string} name
+ * @property {string} tag
+ * @property {string} mode
+ * @property {number} carrier
+ * @property {number} beat
+ * @property {string} noise
+ * @property {number} noiseLevel
+ */
+
+/** @type {Preset[]} */
 const PRESETS = [
 	{ id: 'focus', name: 'Deep Focus', tag: 'beta 15Hz', mode: 'binaural', carrier: 200, beat: 15, noise: 'pink', noiseLevel: 22 },
 	{ id: 'gamma', name: 'Gamma 40', tag: 'isochronic', mode: 'isochronic', carrier: 220, beat: 40, noise: 'off', noiseLevel: 0 },
@@ -30,17 +43,26 @@ const state = {
 
 class Engine {
 	constructor() {
+		/** @type {AudioContext | null} */
 		this.ctx = null;
+		/** @type {GainNode | null} */
 		this.master = null;
-		this.beatGain = null;   // holds the binaural/isochronic voices
+		/** @type {GainNode | null} */
+		this.beatGain = null;
+		/** @type {GainNode | null} */
 		this.noiseGain = null;
-		this.voices = [];       // active oscillator/source nodes to stop
+		/** @type {AudioScheduledSourceNode[]} */
+		this.voices = [];
+		/** @type {AudioBufferSourceNode | null} */
 		this.noiseSource = null;
+		/** @type {{ mode: 'binaural', left: OscillatorNode, right: OscillatorNode } | { mode: 'isochronic', carrier: OscillatorNode, lfo: OscillatorNode } | null} */
+		this.tone = null;
 	}
 
 	ensureContext() {
 		if (this.ctx === null) {
-			this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+			const Ctx = window.AudioContext || /** @type {typeof AudioContext} */ (/** @type {any} */ (window).webkitAudioContext);
+			this.ctx = new Ctx();
 			this.master = this.ctx.createGain();
 			this.master.gain.value = 0;
 			this.master.connect(this.ctx.destination);
@@ -56,10 +78,26 @@ class Engine {
 		return this.ctx;
 	}
 
+	/**
+	 * @returns {{ ctx: AudioContext, master: GainNode, beatGain: GainNode, noiseGain: GainNode }}
+	 */
+	requireGraph() {
+		const { ctx, master, beatGain, noiseGain } = this;
+		if (ctx === null || master === null || beatGain === null || noiseGain === null) {
+			throw new Error('audio graph not initialised');
+		}
+		return { ctx, master, beatGain, noiseGain };
+	}
+
+	/**
+	 * @param {string} type
+	 * @returns {AudioBuffer}
+	 */
 	makeNoiseBuffer(type) {
+		const { ctx } = this.requireGraph();
 		const seconds = 4;
-		const len = this.ctx.sampleRate * seconds;
-		const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+		const len = ctx.sampleRate * seconds;
+		const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
 		const data = buffer.getChannelData(0);
 		if (type === 'brown') {
 			let last = 0;
@@ -87,39 +125,41 @@ class Engine {
 	}
 
 	buildVoices() {
-		const now = this.ctx.currentTime;
+		const { ctx, beatGain } = this.requireGraph();
+		const now = ctx.currentTime;
 		if (state.mode === 'binaural') {
-			const merger = this.ctx.createChannelMerger(2);
-			const left = this.ctx.createOscillator();
-			const right = this.ctx.createOscillator();
+			const merger = ctx.createChannelMerger(2);
+			const left = ctx.createOscillator();
+			const right = ctx.createOscillator();
 			left.type = 'sine';
 			right.type = 'sine';
 			left.frequency.value = state.carrier - state.beat / 2;
 			right.frequency.value = state.carrier + state.beat / 2;
 			left.connect(merger, 0, 0);
 			right.connect(merger, 0, 1);
-			merger.connect(this.beatGain);
+			merger.connect(beatGain);
 			left.start(now);
 			right.start(now);
 			this.voices = [left, right];
+			this.tone = { mode: 'binaural', left, right };
 			return;
 		}
 		// isochronic — one carrier, amplitude gated at the beat rate
-		const carrier = this.ctx.createOscillator();
+		const carrier = ctx.createOscillator();
 		carrier.type = 'sine';
 		carrier.frequency.value = state.carrier;
 
-		const gate = this.ctx.createGain();
+		const gate = ctx.createGain();
 		gate.gain.value = 0.5;
 
-		const lfo = this.ctx.createOscillator();
+		const lfo = ctx.createOscillator();
 		lfo.type = 'sine';
 		lfo.frequency.value = state.beat;
 
-		const shaper = this.ctx.createWaveShaper();
+		const shaper = ctx.createWaveShaper();
 		shaper.curve = this.pulseCurve();
 
-		const depth = this.ctx.createGain();
+		const depth = ctx.createGain();
 		depth.gain.value = 0.5;
 
 		lfo.connect(shaper);
@@ -127,10 +167,11 @@ class Engine {
 		depth.connect(gate.gain);
 
 		carrier.connect(gate);
-		gate.connect(this.beatGain);
+		gate.connect(beatGain);
 		carrier.start(now);
 		lfo.start(now);
 		this.voices = [carrier, lfo];
+		this.tone = { mode: 'isochronic', carrier, lfo };
 	}
 
 	pulseCurve() {
@@ -146,68 +187,136 @@ class Engine {
 
 	startNoise() {
 		if (state.noiseType === 'off') return;
-		this.noiseSource = this.ctx.createBufferSource();
+		const { ctx, noiseGain } = this.requireGraph();
+		this.noiseSource = ctx.createBufferSource();
 		this.noiseSource.buffer = this.makeNoiseBuffer(state.noiseType);
 		this.noiseSource.loop = true;
-		this.noiseSource.connect(this.noiseGain);
+		this.noiseSource.connect(noiseGain);
 		this.noiseSource.start();
 	}
 
 	async play() {
 		this.ensureContext();
-		if (this.ctx.state === 'suspended') await this.ctx.resume();
+		const { ctx, master, noiseGain } = this.requireGraph();
+		if (ctx.state === 'suspended') await ctx.resume();
 		this.buildVoices();
 		this.startNoise();
-		const now = this.ctx.currentTime;
-		this.master.gain.cancelScheduledValues(now);
-		this.master.gain.setValueAtTime(Math.max(0.0001, this.master.gain.value), now);
-		this.master.gain.linearRampToValueAtTime(state.volume / 100, now + 0.8);
-		this.noiseGain.gain.setTargetAtTime(state.noiseLevel / 100, now, 0.4);
+		const now = ctx.currentTime;
+		master.gain.cancelScheduledValues(now);
+		master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), now);
+		master.gain.linearRampToValueAtTime(state.volume / 100, now + 0.8);
+		noiseGain.gain.setTargetAtTime(state.noiseLevel / 100, now, 0.4);
 	}
 
+	/** @param {number} fade */
 	stop(fade = 0.6) {
-		if (this.ctx === null) return;
-		const now = this.ctx.currentTime;
-		this.master.gain.cancelScheduledValues(now);
-		this.master.gain.setValueAtTime(this.master.gain.value, now);
-		this.master.gain.linearRampToValueAtTime(0.0001, now + fade);
+		if (this.ctx === null || this.master === null) return;
+		const ctx = this.ctx;
+		const master = this.master;
+		const now = ctx.currentTime;
+		master.gain.cancelScheduledValues(now);
+		master.gain.setValueAtTime(master.gain.value, now);
+		master.gain.linearRampToValueAtTime(0.0001, now + fade);
 		const voices = this.voices;
 		const noise = this.noiseSource;
 		this.voices = [];
 		this.noiseSource = null;
+		this.tone = null;
 		setTimeout(() => {
 			voices.forEach((v) => { try { v.stop(); } catch (e) {} });
 			if (noise) { try { noise.stop(); } catch (e) {} }
 		}, fade * 1000 + 60);
 	}
 
+	/** @param {number} v */
 	setVolume(v) {
-		if (this.ctx === null || state.playing === false) return;
+		if (this.ctx === null || this.master === null || state.playing === false) return;
 		this.master.gain.setTargetAtTime(v / 100, this.ctx.currentTime, 0.05);
 	}
 
+	/** @param {number} v */
 	setNoiseLevel(v) {
-		if (this.ctx === null || state.playing === false) return;
+		if (this.ctx === null || this.noiseGain === null || state.playing === false) return;
 		this.noiseGain.gain.setTargetAtTime(v / 100, this.ctx.currentTime, 0.1);
+	}
+
+	// glide the running tone to the current carrier/beat — no rebuild, so the
+	// oscillator phase stays continuous and the pitch change is click-free
+	setTone() {
+		if (state.playing === false || this.ctx === null || this.tone === null) return;
+		if (this.tone.mode !== state.mode) { this.refetchVoices(); return; }
+		const t = this.ctx.currentTime;
+		const glide = 0.03;
+		if (this.tone.mode === 'binaural') {
+			this.tone.left.frequency.setTargetAtTime(state.carrier - state.beat / 2, t, glide);
+			this.tone.right.frequency.setTargetAtTime(state.carrier + state.beat / 2, t, glide);
+			return;
+		}
+		this.tone.carrier.frequency.setTargetAtTime(state.carrier, t, glide);
+		this.tone.lfo.frequency.setTargetAtTime(state.beat, t, glide);
 	}
 
 	// live-updates that need the graph rebuilt (freq/mode/noise type)
 	refetchVoices() {
-		if (state.playing === false || this.ctx === null) return;
+		if (state.playing === false || this.ctx === null || this.noiseGain === null) return;
+		const noiseGain = this.noiseGain;
 		this.voices.forEach((v) => { try { v.stop(); } catch (e) {} });
 		if (this.noiseSource) { try { this.noiseSource.stop(); } catch (e) {} this.noiseSource = null; }
 		this.buildVoices();
 		this.startNoise();
-		this.noiseGain.gain.value = state.noiseLevel / 100;
+		noiseGain.gain.value = state.noiseLevel / 100;
 	}
 }
 
 const engine = new Engine();
 
+// ---- Wake lock ---------------------------------------------------------
+// Keep the screen (and device) awake while a tone is playing. The browser
+// auto-releases the lock when the tab is hidden, so re-acquire on return.
+
+class WakeLock {
+	constructor() {
+		/** @type {WakeLockSentinel | null} */
+		this.sentinel = null;
+		this.wanted = false;
+		document.addEventListener('visibilitychange', () => {
+			if (this.wanted && document.visibilityState === 'visible') this.request();
+		});
+	}
+
+	async request() {
+		this.wanted = true;
+		if (!('wakeLock' in navigator) || this.sentinel !== null) return;
+		try {
+			this.sentinel = await navigator.wakeLock.request('screen');
+			this.sentinel.addEventListener('release', () => { this.sentinel = null; });
+		} catch (e) {
+			this.sentinel = null;
+		}
+	}
+
+	async release() {
+		this.wanted = false;
+		const sentinel = this.sentinel;
+		this.sentinel = null;
+		if (sentinel !== null) { try { await sentinel.release(); } catch (e) {} }
+	}
+}
+
+const wakeLock = new WakeLock();
+
 // ---- UI wiring ---------------------------------------------------------
 
-const el = (id) => document.getElementById(id);
+/** @param {string} id @returns {HTMLElement} */
+const el = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
+/** @param {string} id @returns {HTMLInputElement} */
+const inputEl = (id) => /** @type {HTMLInputElement} */ (el(id));
+
+/** @param {string} sel @returns {NodeListOf<HTMLElement>} */
+const els = (sel) => /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(sel));
+
+/** @param {number} beat */
 function bandFor(beat) {
 	return BANDS.find((b) => beat <= b.max) || BANDS[BANDS.length - 1];
 }
@@ -225,6 +334,7 @@ function renderPresets() {
 	});
 }
 
+/** @param {Preset} p */
 function applyPreset(p) {
 	state.mode = p.mode;
 	state.carrier = p.carrier;
@@ -236,23 +346,24 @@ function applyPreset(p) {
 	engine.refetchVoices();
 }
 
+/** @param {string} id */
 function markActivePreset(id) {
-	document.querySelectorAll('.preset').forEach((b) => {
+	els('.preset').forEach((b) => {
 		b.classList.toggle('active', b.dataset.id === id);
 	});
 }
 
 function clearActivePreset() {
-	document.querySelectorAll('.preset').forEach((b) => b.classList.remove('active'));
+	els('.preset').forEach((b) => b.classList.remove('active'));
 }
 
 function syncControls() {
-	el('beat').value = state.beat;
-	el('carrier').value = state.carrier;
-	el('vol').value = state.volume;
-	el('noise').value = state.noiseLevel;
-	el('noiseType').value = state.noiseType;
-	document.querySelectorAll('.mode').forEach((m) => {
+	inputEl('beat').value = String(state.beat);
+	inputEl('carrier').value = String(state.carrier);
+	inputEl('vol').value = String(state.volume);
+	inputEl('noise').value = String(state.noiseLevel);
+	inputEl('noiseType').value = state.noiseType;
+	els('.mode').forEach((m) => {
 		m.classList.toggle('active', m.dataset.mode === state.mode);
 	});
 	el('beatVal').textContent = state.beat.toFixed(1) + ' Hz';
@@ -285,9 +396,11 @@ function updatePulse() {
 }
 
 // timer
+/** @type {ReturnType<typeof setInterval> | null} */
 let timerId = null;
 let endAt = 0;
 
+/** @param {number} sec */
 function fmt(sec) {
 	const m = Math.floor(sec / 60);
 	const s = Math.floor(sec % 60);
@@ -295,7 +408,7 @@ function fmt(sec) {
 }
 
 function startTimer() {
-	const len = parseInt(el('timerLen').value, 10);
+	const len = parseInt(inputEl('timerLen').value, 10);
 	const clock = el('clock');
 	clock.classList.remove('idle');
 	if (len === 0) {
@@ -333,15 +446,18 @@ async function togglePlay() {
 		state.playing = true;
 		setPlayIcon(true);
 		startTimer();
+		wakeLock.request();
 	} else {
 		engine.stop();
 		state.playing = false;
 		setPlayIcon(false);
 		stopTimer();
+		wakeLock.release();
 	}
 	updatePulse();
 }
 
+/** @param {boolean} playing */
 function setPlayIcon(playing) {
 	const icon = el('playIcon');
 	icon.innerHTML = playing
@@ -352,46 +468,53 @@ function setPlayIcon(playing) {
 
 // events
 el('beat').addEventListener('input', (e) => {
-	state.beat = parseFloat(e.target.value);
+	const target = /** @type {HTMLInputElement} */ (e.target);
+	state.beat = parseFloat(target.value);
 	el('beatVal').textContent = state.beat.toFixed(1) + ' Hz';
 	el('beatBand').textContent = bandFor(state.beat).name;
 	clearActivePreset();
 	updateHint();
 	updatePulse();
-	engine.refetchVoices();
+	engine.setTone();
 });
 
 el('carrier').addEventListener('input', (e) => {
-	state.carrier = parseInt(e.target.value, 10);
+	const target = /** @type {HTMLInputElement} */ (e.target);
+	state.carrier = parseInt(target.value, 10);
 	el('carrierVal').textContent = state.carrier + ' Hz';
 	clearActivePreset();
 	updateHint();
-	engine.refetchVoices();
+	engine.setTone();
 });
 
 el('vol').addEventListener('input', (e) => {
-	state.volume = parseInt(e.target.value, 10);
+	const target = /** @type {HTMLInputElement} */ (e.target);
+	state.volume = parseInt(target.value, 10);
 	el('volVal').textContent = state.volume + '%';
 	engine.setVolume(state.volume);
 });
 
 el('noise').addEventListener('input', (e) => {
-	state.noiseLevel = parseInt(e.target.value, 10);
+	const target = /** @type {HTMLInputElement} */ (e.target);
+	state.noiseLevel = parseInt(target.value, 10);
 	el('noiseVal').textContent = state.noiseType === 'off' ? 'off' : state.noiseLevel + '%';
 	clearActivePreset();
 	engine.setNoiseLevel(state.noiseLevel);
 });
 
 el('noiseType').addEventListener('change', (e) => {
-	state.noiseType = e.target.value;
+	const target = /** @type {HTMLInputElement} */ (e.target);
+	state.noiseType = target.value;
 	el('noiseVal').textContent = state.noiseType === 'off' ? 'off' : state.noiseLevel + '%';
 	clearActivePreset();
 	engine.refetchVoices();
 });
 
-document.querySelectorAll('.mode').forEach((m) => {
+els('.mode').forEach((m) => {
 	m.addEventListener('click', () => {
-		state.mode = m.dataset.mode;
+		const mode = m.dataset.mode;
+		if (mode === undefined) return;
+		state.mode = mode;
 		syncControls();
 		clearActivePreset();
 		engine.refetchVoices();
