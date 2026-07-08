@@ -403,3 +403,10 @@ el('play').addEventListener('click', togglePlay);
 // boot
 renderPresets();
 applyPreset(PRESETS[0]);
+
+// PWA — register the service worker so the app installs and runs offline
+if ('serviceWorker' in navigator) {
+	window.addEventListener('load', () => {
+		navigator.serviceWorker.register('sw.js').catch(() => {});
+	});
+}

@@ -24,6 +24,7 @@ A tiny, static web app that **synthesizes binaural and isochronic tones live in 
 - **Fully tunable** — live sliders for beat frequency (with a brainwave-band label), carrier frequency, master volume, and background noise (pink / brown) with its own level.
 - **Session timer** — 10 / 25 / 60 / 90 minutes or no limit, with a click-free fade-out.
 - **Click-free** start/stop and parameter changes via smooth gain ramps.
+- **Installable & offline (PWA)** — add it to your home screen or desktop and it runs full-screen, launches from an icon, and works with no network. A service worker caches the whole app shell; there are no audio files to download because everything is synthesized live.
 
 ## How it works
 
@@ -65,9 +66,22 @@ binaural_music/
 ├── web/                   # the entire static app (this folder is what gets published)
 │   ├── index.html
 │   ├── css/styles.css
-│   └── js/app.js          # audio engine + UI
+│   ├── js/app.js          # audio engine + UI
+│   ├── manifest.webmanifest  # PWA metadata (name, colors, icons)
+│   ├── sw.js              # service worker — caches the app shell for offline use
+│   └── icons/             # app icons (SVG source + 192/512 PNG + apple-touch)
 └── README.md
 ```
+
+## Install as an app (PWA)
+
+The app is a Progressive Web App, so it can be installed from the browser and run like a native app — full-screen, launched from an icon, and working entirely offline.
+
+- **Desktop (Chrome/Edge):** click the install icon in the address bar, or use the browser menu → *Install Brainwave Player*.
+- **iOS (Safari):** Share → *Add to Home Screen*.
+- **Android (Chrome):** menu → *Install app* / *Add to Home Screen*.
+
+Once installed, the [service worker](web/sw.js) serves the cached app shell, so it opens instantly and keeps working with no connection. After you deploy a change, bump the `CACHE` version string in `web/sw.js` so installed clients pick up the new assets.
 
 ## Deploy
 
