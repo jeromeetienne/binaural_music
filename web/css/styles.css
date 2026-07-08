@@ -301,6 +301,16 @@ select {
 	border-color: var(--accent);
 }
 
+.credit a.gh {
+	margin-left: 9px;
+	vertical-align: -3px;
+	border-bottom: none;
+}
+
+.credit a.gh:hover {
+	color: var(--accent);
+}
+
 .pulse {
 	display: inline-block;
 	width: 8px;
