@@ -29,11 +29,50 @@ const PRESETS = [
 	{ id: 'sleep', name: 'Sleep', tag: 'delta 2.5Hz', mode: 'binaural', carrier: 110, beat: 2.5, noise: 'brown', noiseLevel: 30 },
 ];
 
+// ---- Saved master volume -----------------------------------------------
+
+/** Remembers the master volume between visits, in the browser local storage. */
+class MasterVolumeStorage {
+	/** Name of the local storage entry that holds the master volume. */
+	static KEY = 'brainwavePlayer.masterVolume';
+
+	/** Master volume, in percent, when nothing valid is saved. */
+	static DEFAULT_VOLUME = 60;
+
+	/**
+	 * Reads the saved master volume.
+	 * @returns {number} A whole number from 0 to 100, or the default volume when the saved value is missing,
+	 *   invalid, or cannot be read.
+	 */
+	static load() {
+		try {
+			const savedStr = localStorage.getItem(MasterVolumeStorage.KEY);
+			if (savedStr === null || /^\d{1,3}$/.test(savedStr) === false) {
+				return MasterVolumeStorage.DEFAULT_VOLUME;
+			}
+			const saved = parseInt(savedStr, 10);
+			return saved <= 100 ? saved : MasterVolumeStorage.DEFAULT_VOLUME;
+		} catch (e) {
+			return MasterVolumeStorage.DEFAULT_VOLUME;
+		}
+	}
+
+	/**
+	 * Saves the master volume. Does nothing when the local storage is not available.
+	 * @param {number} volume Master volume, in percent.
+	 */
+	static save(volume) {
+		try {
+			localStorage.setItem(MasterVolumeStorage.KEY, String(volume));
+		} catch (e) {}
+	}
+}
+
 const state = {
 	mode: 'binaural',
 	carrier: 200,
 	beat: 15,
-	volume: 60,
+	volume: MasterVolumeStorage.load(),
 	noiseType: 'pink',
 	noiseLevel: 22,
 	playing: false,
@@ -492,6 +531,7 @@ el('vol').addEventListener('input', (e) => {
 	state.volume = parseInt(target.value, 10);
 	el('volVal').textContent = state.volume + '%';
 	engine.setVolume(state.volume);
+	MasterVolumeStorage.save(state.volume);
 });
 
 el('noise').addEventListener('input', (e) => {
