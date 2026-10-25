@@ -563,6 +563,20 @@ els('.mode').forEach((m) => {
 
 el('play').addEventListener('click', togglePlay);
 
+KeyboardShortcuts.install({
+	toggle: togglePlay,
+	play: async () => {
+		if (state.playing === false) {
+			await togglePlay();
+		}
+	},
+	pause: async () => {
+		if (state.playing === true) {
+			await togglePlay();
+		}
+	},
+});
+
 // boot
 renderPresets();
 applyPreset(PRESETS[0]);
